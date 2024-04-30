@@ -1,0 +1,5 @@
+livekit
+livekit-api
+opencv-python
+pyaudio
+pvrecorder
