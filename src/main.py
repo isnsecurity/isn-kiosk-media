@@ -7,7 +7,6 @@ import numpy as np
 from livekit import api, rtc
 import cv2
 import pyaudio
-from pvrecorder import PvRecorder
 
 
 WIDTH, HEIGHT = 1024, 576
@@ -141,30 +140,6 @@ async def audio_loop(audio_source: rtc.AudioSource):
         data = stream.read(1024)
         frame = rtc.AudioFrame(data, RATE, NUM_CHANNELS, 1024)
         await audio_source.capture_frame(frame)
-
-    stream.stop_stream()
-    stream.close()
-    p.terminate()
-
-
-async def audio_loop2(audio_source: rtc.AudioSource):
-    for index, device in enumerate(PvRecorder.get_available_devices()):
-        print(f"[{index}] {device}")
-    recorder = PvRecorder(device_index=1, frame_length=512,
-                          buffered_frames_count=50)
-
-    try:
-        recorder.start()
-
-        while True:
-            data = recorder.read()
-            frame = rtc.AudioFrame(data, 48000, 1, 480)
-            await audio_source.capture_frame(frame)
-            # Do something ...
-    except KeyboardInterrupt:
-        recorder.stop()
-    finally:
-        recorder.delete()
 
     stream.stop_stream()
     stream.close()
