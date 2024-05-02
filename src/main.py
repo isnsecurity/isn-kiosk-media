@@ -28,7 +28,10 @@ async def play_audio(audio_stream: rtc.AudioStream):
 
 
 def remote_audio_processing(audio_stream: rtc.AudioStream):
-    asyncio.run(play_audio(audio_stream))
+    try:
+        asyncio.run(play_audio(audio_stream))
+    except Exception as e:
+        logging.error("Error processing remote audio: %s", e)
 
 
 async def main(room: rtc.Room):
