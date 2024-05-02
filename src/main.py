@@ -17,6 +17,20 @@ RATE = 44100
 NUM_CHANNELS = 1
 
 
+async def play_audio(audio_stream: rtc.AudioStream):
+    p = pyaudio.PyAudio()
+    output_stream = p.open(format=pyaudio.paInt16,
+                           channels=1,
+                           rate=44100,
+                           output=True)
+    async for frame in audio_stream:
+        output_stream.write(frame.frame.data.tobytes())
+
+
+def remote_audio_processing(audio_stream: rtc.AudioStream):
+    asyncio.run(play_audio(audio_stream))
+
+
 async def main(room: rtc.Room):
     @room.on("participant_connected")
     def on_participant_connected(participant: rtc.RemoteParticipant) -> None:
@@ -30,16 +44,6 @@ async def main(room: rtc.Room):
         track: Union[rtc.LocalAudioTrack, rtc.LocalVideoTrack],
     ):
         logging.info("local track published: %s", publication.sid)
-
-    async def play_audio(audio_stream: rtc.AudioStream):
-        p = pyaudio.PyAudio()
-        output_stream = p.open(format=pyaudio.paInt16,
-                               channels=1,
-                               rate=44100,
-                               output=True)
-        async for frame in audio_stream:
-            output_stream.write(frame.frame.data.tobytes())
-            await asyncio.sleep(0.01)
 
     @room.on("data_received")
     def on_data_received(data: rtc.DataPacket):
@@ -56,7 +60,13 @@ async def main(room: rtc.Room):
         if track.kind == rtc.TrackKind.KIND_AUDIO:
             print("Subscribed to an Audio Track")
             audio_stream = rtc.AudioStream(track)
-            asyncio.ensure_future(play_audio(audio_stream))
+            remote_audio_thread = threading.Thread(
+                name="remote_audio_thread",
+                target=remote_audio_processing,
+                args=(audio_stream,),
+                daemon=True
+            )
+            remote_audio_thread.start()
 
     token = (
         api.AccessToken()
