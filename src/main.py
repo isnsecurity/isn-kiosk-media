@@ -190,6 +190,9 @@ def audio_loop(audio_source: rtc.AudioSource):
 
 
 if __name__ == "__main__":
+    p = pyaudio.PyAudio()
+    for i in range(p.get_device_count()):
+        print(p.get_device_info_by_index(i))
     logging.basicConfig(
         level=logging.INFO,
         handlers=[logging.FileHandler(
