@@ -1,4 +1,6 @@
 import asyncio
+import threading
+from time import sleep
 import colorsys
 import logging
 import os
@@ -7,6 +9,7 @@ import numpy as np
 from livekit import api, rtc
 import cv2
 import pyaudio
+from typing import Union
 
 
 WIDTH, HEIGHT = 1024, 576
@@ -15,6 +18,46 @@ NUM_CHANNELS = 1
 
 
 async def main(room: rtc.Room):
+    @room.on("participant_connected")
+    def on_participant_connected(participant: rtc.RemoteParticipant) -> None:
+        logging.info(
+            "participant connected: %s %s", participant.sid, participant.identity
+        )
+
+    @room.on("local_track_published")
+    def on_local_track_published(
+        publication: rtc.LocalTrackPublication,
+        track: Union[rtc.LocalAudioTrack, rtc.LocalVideoTrack],
+    ):
+        logging.info("local track published: %s", publication.sid)
+
+    async def play_audio(audio_stream: rtc.AudioStream):
+        p = pyaudio.PyAudio()
+        output_stream = p.open(format=pyaudio.paInt16,
+                               channels=1,
+                               rate=44100,
+                               output=True)
+        async for frame in audio_stream:
+            output_stream.write(frame.frame.data.tobytes())
+            await asyncio.sleep(0.01)
+
+    @room.on("data_received")
+    def on_data_received(data: rtc.DataPacket):
+        logging.info("received data from %s: %s",
+                     data.participant.identity, data.data)
+
+    @room.on("track_subscribed")
+    def on_track_subscribed(
+        track: rtc.Track,
+        publication: rtc.RemoteTrackPublication,
+        participant: rtc.RemoteParticipant,
+    ):
+        logging.info("track subscribed: %s", publication.sid)
+        if track.kind == rtc.TrackKind.KIND_AUDIO:
+            print("Subscribed to an Audio Track")
+            audio_stream = rtc.AudioStream(track)
+            asyncio.ensure_future(play_audio(audio_stream))
+
     token = (
         api.AccessToken()
         .with_identity("guest-kiosk")
@@ -75,41 +118,28 @@ async def main(room: rtc.Room):
     audio_publication = await room.local_participant.publish_track(
         audio_track, audio_options)
     logging.info("published audio track %s", audio_publication.sid)
-
-    # asyncio.ensure_future(draw_color_cycle(source))
+    threads = [x.name for x in threading.enumerate()
+               if "pydevd" not in x.name]
+    logging.info('Threads %s: %s', len(threads), threads)
     # asyncio.ensure_future(video_loop(source, audio_source))
-    await asyncio.gather(audio_loop(audio_source), video_loop(source))
+    local_audio_thread = threading.Thread(
+        name="local_audio_thread",
+        target=audio_loop,
+        args=(audio_source,),
+        daemon=True
+    )
+    local_video_thread = threading.Thread(
+        name="local_video_thread",
+        target=video_loop,
+        args=(source,),
+        daemon=True
+    )
+    local_audio_thread.start()
+    local_video_thread.start()
+    # await asyncio.gather(audio_loop(audio_source), video_loop(source))
 
 
-async def draw_color_cycle(source: rtc.VideoSource):
-    argb_frame = bytearray(WIDTH * HEIGHT * 4)
-    arr = np.frombuffer(argb_frame, dtype=np.uint8)
-
-    framerate = 1 / 30
-    hue = 0.0
-
-    while True:
-        start_time = asyncio.get_event_loop().time()
-
-        rgb = colorsys.hsv_to_rgb(hue, 1.0, 1.0)
-        rgb = [(x * 255) for x in rgb]  # type: ignore
-
-        argb_color = np.array(rgb + [255], dtype=np.uint8)
-        arr.flat[::4] = argb_color[0]
-        arr.flat[1::4] = argb_color[1]
-        arr.flat[2::4] = argb_color[2]
-        arr.flat[3::4] = argb_color[3]
-
-        frame = rtc.VideoFrame(
-            WIDTH, HEIGHT, rtc.VideoBufferType.RGBA, argb_frame)
-        source.capture_frame(frame)
-        hue = (hue + framerate / 3) % 1.0
-
-        code_duration = asyncio.get_event_loop().time() - start_time
-        await asyncio.sleep(1 / 30 - code_duration)
-
-
-async def video_loop(source: rtc.VideoSource):
+def video_loop(source: rtc.VideoSource):
     cap = cv2.VideoCapture(0)
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, WIDTH)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, HEIGHT)
@@ -118,7 +148,7 @@ async def video_loop(source: rtc.VideoSource):
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGBA)
         source.capture_frame(
             rtc.VideoFrame(WIDTH, HEIGHT, rtc.VideoBufferType.RGBA, frame))
-        await asyncio.sleep(0.06)
+        sleep(0.06)
 
         # cv2.imshow("frame", frame)
         # if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -128,7 +158,7 @@ async def video_loop(source: rtc.VideoSource):
     cv2.destroyAllWindows()
 
 
-async def audio_loop(audio_source: rtc.AudioSource):
+def audio_loop(audio_source: rtc.AudioSource):
     p = pyaudio.PyAudio()
     stream = p.open(format=pyaudio.paInt16,
                     channels=1,
@@ -139,7 +169,7 @@ async def audio_loop(audio_source: rtc.AudioSource):
     while True:
         data = stream.read(1024)
         frame = rtc.AudioFrame(data, RATE, NUM_CHANNELS, 1024)
-        await audio_source.capture_frame(frame)
+        asyncio.run(audio_source.capture_frame(frame))
 
     stream.stop_stream()
     stream.close()
