@@ -14,6 +14,7 @@
                 "LIVEKIT_URL": "https://isn-media-273rhf15.livekit.cloud",
                 "LIVEKIT_API_KEY": "APInEzbJNoMNLxf",
                 "LIVEKIT_API_SECRET": "e9gy6um4AoHzAjCXPLUiSUe2NYdvj3b23zJnxKHUOy9",
+                "PUSH_NOTIFICATION_URL": "https://us-central1-isncustomers.cloudfunctions.net/push_video_call",
             }
         }
     ]

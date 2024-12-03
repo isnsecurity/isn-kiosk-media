@@ -1,15 +1,15 @@
 import asyncio
 import threading
 from time import sleep
-import colorsys
 import logging
 import os
+from typing import Union
+import json
 
-import numpy as np
 from livekit import api, rtc
 import cv2
 import pyaudio
-from typing import Union
+from tools.request.client import RestClient
 
 
 WIDTH, HEIGHT = 1024, 576
@@ -97,6 +97,25 @@ async def main(room: rtc.Room):
         .to_jwt()
     )
     logging.info(client_token)
+    request = RestClient(os.getenv("PUSH_NOTIFICATION_URL"))
+    data = {
+        "data": {
+            "phones": ["7867262434"],
+            "priority": "high",
+            "variables": {
+                "callToken": client_token,
+                "title": "Community Gate Call",
+                "message": "You have a call from back gate. Please click to answer."
+            }
+        }
+    }
+
+    logging.info("Push notification sent")
+
+    # wss://isn-media-xunj78xl.livekit.cloud
+    # API6rvatVYtTGCf
+    # bskUSEzA8BGNehB2YgGu1jDH06f8ReAH332RCeIaX77B
+
     url = os.getenv("LIVEKIT_URL")
     lkapi = api.LiveKitAPI(url)
     logging.info("Creating room")
@@ -125,7 +144,8 @@ async def main(room: rtc.Room):
 
     # publich a audio track
     audio_source = rtc.AudioSource(RATE, NUM_CHANNELS)
-    audio_track = rtc.LocalAudioTrack.create_audio_track("mic", audio_source)
+    audio_track = rtc.LocalAudioTrack.create_audio_track(
+        "mic", audio_source)
     audio_options = rtc.TrackPublishOptions()
     audio_options.source = rtc.TrackSource.SOURCE_MICROPHONE
     audio_publication = await room.local_participant.publish_track(
@@ -150,6 +170,9 @@ async def main(room: rtc.Room):
     local_audio_thread.start()
     local_video_thread.start()
     # await asyncio.gather(audio_loop(audio_source), video_loop(source))
+    response = json.loads(request.send(data))
+    if response.get("status") == "success":
+        logging.info("Push notification sent")
 
 
 def video_loop(source: rtc.VideoSource):
@@ -159,6 +182,11 @@ def video_loop(source: rtc.VideoSource):
     while True:
         _, frame = cap.read()
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGBA)
+        # rezise image to portrait
+        # new_width = 300
+        # new_height = 576
+        # frame = cv2.resize(frame, (new_width, new_height))
+
         source.capture_frame(
             rtc.VideoFrame(WIDTH, HEIGHT, rtc.VideoBufferType.RGBA, frame))
         sleep(0.06)
