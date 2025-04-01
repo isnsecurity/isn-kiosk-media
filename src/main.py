@@ -195,9 +195,11 @@ if __name__ == "__main__":
         handlers=[logging.FileHandler(
             "isn-kiosk-media.log"), logging.StreamHandler()],
     )
-    p = pyaudio.PyAudio()
-    for i in range(p.get_device_count()):
-        logging.info(p.get_device_info_by_index(i))
+    # p = pyaudio.PyAudio()
+    # for i in range(p.get_device_count()):
+    #     logging.info(p.get_device_info_by_index(i))
+    # logging.info(p.get_default_input_device_info())
+    # logging.info(p.get_default_output_device_info())
 
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
