@@ -2,4 +2,5 @@ six
 livekit
 livekit-api
 opencv-python
-# pyaudio
+picamera2
+pyaudio
