@@ -170,7 +170,7 @@ async def main(room: rtc.Room):
         daemon=True
     )
     local_audio_thread.start()
-    # local_video_thread.start()
+    local_video_thread.start()
     # await asyncio.gather(audio_loop(audio_source), video_loop(source))
     response = json.loads(request.send(data))
     if response.get("status") == "success":
@@ -215,7 +215,8 @@ def audio_loop(audio_source: rtc.AudioSource):
             elapsed_ms = (time() - start) * 1000
             audio_array = np.frombuffer(data, dtype=np.int16)
             amplitude = np.abs(audio_array).mean()
-            logging.info(f"Audio capture took: {elapsed_ms:.2f}ms, Amplitude: {amplitude:.2f}")
+            logging.info(
+                f"Audio capture took: {elapsed_ms:.2f}ms, Amplitude: {amplitude:.2f}")
             frame = rtc.AudioFrame(data, RATE, NUM_CHANNELS, CHUNK)
             asyncio.run(audio_source.capture_frame(frame))
             asyncio.run(asyncio.sleep(0.01))
@@ -249,6 +250,8 @@ if __name__ == "__main__":
 
     try:
         loop.run_forever()
+    except Exception as e:
+        logging.error("Error occurred: %s", e)
     finally:
         loop.close()
 
