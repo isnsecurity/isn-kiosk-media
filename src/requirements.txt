@@ -1,6 +1,5 @@
 six
-livekit
-livekit-api
+livekit==0.10.0
+livekit-api==0.5.0 
 opencv-python
-picamera2
-pyaudio
+pyaudio  

@@ -112,8 +112,6 @@ async def main(room: rtc.Room):
         }
     }
 
-    logging.info("Push notification sent")
-
     # wss://isn-media-xunj78xl.livekit.cloud
     # API6rvatVYtTGCf
     # bskUSEzA8BGNehB2YgGu1jDH06f8ReAH332RCeIaX77B
@@ -172,33 +170,35 @@ async def main(room: rtc.Room):
     local_audio_thread.start()
     local_video_thread.start()
     # await asyncio.gather(audio_loop(audio_source), video_loop(source))
-    response = json.loads(request.send(data))
-    if response.get("status") == "success":
-        logging.info("Push notification sent")
+    # response = json.loads(request.send(data))
+    # if response.get("status") == "success":
+    #     logging.info("Push notification sent")
 
 
 def video_loop(source: rtc.VideoSource):
     cap = cv2.VideoCapture(0)
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, WIDTH)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, HEIGHT)
-    while True:
-        _, frame = cap.read()
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGBA)
-        # rezise image to portrait
-        # new_width = 300
-        # new_height = 576
-        # frame = cv2.resize(frame, (new_width, new_height))
+    try:
+        while True:
+            _, frame = cap.read()
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGBA)
+            # rezise image to portrait
+            # new_width = 300
+            # new_height = 576
+            # frame = cv2.resize(frame, (new_width, new_height))
 
-        source.capture_frame(
-            rtc.VideoFrame(WIDTH, HEIGHT, rtc.VideoBufferType.RGBA, frame))
-        sleep(0.1)
+            source.capture_frame(
+                rtc.VideoFrame(WIDTH, HEIGHT, rtc.VideoBufferType.RGBA, frame))
+            sleep(0.1)
 
-        # cv2.imshow("frame", frame)
-        # if cv2.waitKey(1) & 0xFF == ord('q'):
-        #     break
-    cap.release()
-    # Destroy all the windows
-    cv2.destroyAllWindows()
+            # cv2.imshow("frame", frame)
+            # if cv2.waitKey(1) & 0xFF == ord('q'):
+            #     break
+    finally:
+        cap.release()
+        # Destroy all the windows
+        cv2.destroyAllWindows()
 
 
 def audio_loop(audio_source: rtc.AudioSource):
