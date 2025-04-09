@@ -1,6 +1,6 @@
 six
-livekit==0.10.0
-livekit-api==0.5.0 
+livekit
+livekit-api
 opencv-python
 pyaudio
 firebase-admin
