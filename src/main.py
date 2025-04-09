@@ -16,7 +16,7 @@ from tools.request.client import RestClient
 
 
 WIDTH, HEIGHT = 1024, 576
-MIC_RATE = 16000
+MIC_RATE = 48000
 RATE = 48000
 CHUNK = 2048
 NUM_CHANNELS = 1
