@@ -16,6 +16,7 @@ from tools.request.client import RestClient
 
 
 WIDTH, HEIGHT = 1024, 576
+MIC_RATE = 16000
 RATE = 48000
 CHUNK = 2048
 NUM_CHANNELS = 1
@@ -23,19 +24,15 @@ NUM_CHANNELS = 1
 
 async def play_audio(audio_stream: rtc.AudioStream):
     p = pyaudio.PyAudio()
-    output_stream = p.open(format=pyaudio.paInt16,
+    stream = p.open(format=pyaudio.paInt16,
                            channels=1,
                            rate=RATE,
                            output=True)
     async for frame in audio_stream:
-        output_stream.write(frame.frame.data.tobytes())
-
-
-def remote_audio_processing(audio_stream: rtc.AudioStream):
-    try:
-        asyncio.run(play_audio(audio_stream))
-    except Exception as e:
-        logging.error("Error processing remote audio: %s", e)
+        stream.write(frame.frame.data.tobytes())
+    stream.stop_stream()
+    stream.close()
+    p.terminate()
 
 
 async def main(room: rtc.Room):
@@ -51,12 +48,12 @@ async def main(room: rtc.Room):
             "participant connected: %s %s", participant.sid, participant.identity
         )
 
-    @room.on("local_track_published")
-    def on_local_track_published(
-        publication: rtc.LocalTrackPublication,
-        track: Union[rtc.LocalAudioTrack, rtc.LocalVideoTrack],
-    ):
-        logging.info("local track published: %s", publication.sid)
+    # @room.on("local_track_published")
+    # def on_local_track_published(
+    #     publication: rtc.LocalTrackPublication,
+    #     track: Union[rtc.LocalAudioTrack, rtc.LocalVideoTrack],
+    # ):
+    #     logging.info("local track published: %s", publication.sid)
 
     @room.on("data_received")
     def on_data_received(data: rtc.DataPacket):
@@ -65,21 +62,13 @@ async def main(room: rtc.Room):
 
     @room.on("track_subscribed")
     def on_track_subscribed(
-        track: rtc.Track,
-        publication: rtc.RemoteTrackPublication,
-        participant: rtc.RemoteParticipant,
+        track: rtc.Track
     ):
-        logging.info("track subscribed: %s", publication.sid)
-        if track.kind == rtc.TrackKind.KIND_AUDIO:
-            print("Subscribed to an Audio Track")
+        if isinstance(track, rtc.AudioTrack):
+            logging.info("Subscribed to an Audio Track")
             audio_stream = rtc.AudioStream(track)
-            remote_audio_thread = threading.Thread(
-                name="remote_audio_thread",
-                target=remote_audio_processing,
-                args=(audio_stream,),
-                daemon=True
-            )
-            remote_audio_thread.start()
+            asyncio.ensure_future(play_audio(audio_stream))
+
 
     token = (
         api.AccessToken()
@@ -157,7 +146,7 @@ async def main(room: rtc.Room):
     logging.info("published video track %s", publication.sid)
 
     # publich a audio track
-    audio_source = rtc.AudioSource(RATE, NUM_CHANNELS)
+    audio_source = rtc.AudioSource(MIC_RATE, NUM_CHANNELS)
     audio_track = rtc.LocalAudioTrack.create_audio_track(
         "mic", audio_source)
     audio_options = rtc.TrackPublishOptions()
@@ -181,8 +170,8 @@ async def main(room: rtc.Room):
         args=(source,),
         daemon=True
     )
-    local_audio_thread.start()
-    local_video_thread.start()
+    # local_audio_thread.start()
+    # local_video_thread.start()
     # await asyncio.gather(audio_loop(audio_source), video_loop(source))
     # response = json.loads(request.send(data))
     # if response.get("status") == "success":
