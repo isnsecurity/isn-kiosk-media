@@ -3,3 +3,4 @@
 static/
 __pycache__/
 *.log
+secrets/
