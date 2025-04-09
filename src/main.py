@@ -10,6 +10,8 @@ import json
 from livekit import api, rtc
 import cv2
 import pyaudio
+import firebase_admin
+from firebase_admin import credentials, firestore
 from tools.request.client import RestClient
 
 
@@ -37,6 +39,12 @@ def remote_audio_processing(audio_stream: rtc.AudioStream):
 
 
 async def main(room: rtc.Room):
+    CREDENTIALS = "secrets/dev/isn-suite-dev-370915-firebase-adminsdk-sn531-7e70dbe832.json"
+    cred = credentials.Certificate(CREDENTIALS)
+    firebase_admin.initialize_app(cred)
+    db = firestore.client()
+    calls = db.collection('kiosk-calls')
+
     @room.on("participant_connected")
     def on_participant_connected(participant: rtc.RemoteParticipant) -> None:
         logging.info(
@@ -98,19 +106,25 @@ async def main(room: rtc.Room):
         )
         .to_jwt()
     )
-    logging.info(client_token)
-    request = RestClient(os.getenv("PUSH_NOTIFICATION_URL"))
-    data = {
-        "data": {
-            "phones": ["7867262434"],
-            "priority": "high",
-            "variables": {
-                "callToken": client_token,
-                "title": "Community Gate Call",
-                "message": "You have a call from back gate. Please click to answer."
-            }
-        }
-    }
+    calls.document("7866563928").set({
+        'status': 'pending',
+        'token': client_token,
+        'room': "Kiosk Call",
+        'timestamp': time(),
+    })
+
+    # request = RestClient(os.getenv("PUSH_NOTIFICATION_URL"))
+    # data = {
+    #     "data": {
+    #         "phones": ["7867262434"],
+    #         "priority": "high",
+    #         "variables": {
+    #             "callToken": client_token,
+    #             "title": "Community Gate Call",
+    #             "message": "You have a call from back gate. Please click to answer."
+    #         }
+    #     }
+    # }
 
     # wss://isn-media-xunj78xl.livekit.cloud
     # API6rvatVYtTGCf
@@ -240,13 +254,13 @@ if __name__ == "__main__":
 
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    room = rtc.Room(loop=loop)
+    local_room = rtc.Room(loop=loop)
 
     async def cleanup():
-        await room.disconnect()
+        await local_room.disconnect()
         loop.stop()
 
-    asyncio.ensure_future(main(room))
+    asyncio.ensure_future(main(local_room))
 
     try:
         loop.run_forever()

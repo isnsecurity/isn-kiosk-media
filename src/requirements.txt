@@ -2,4 +2,5 @@ six
 livekit==0.10.0
 livekit-api==0.5.0 
 opencv-python
-pyaudio  
+pyaudio
+firebase-admin
