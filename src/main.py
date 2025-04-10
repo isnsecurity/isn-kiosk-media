@@ -18,18 +18,19 @@ from tools.request.client import RestClient
 WIDTH, HEIGHT = 1024, 576
 MIC_RATE = 48000
 RATE = 48000
-CHUNK = 2048
+CHUNK = 4096
 NUM_CHANNELS = 1
-
 
 async def play_audio(audio_stream: rtc.AudioStream):
     p = pyaudio.PyAudio()
     stream = p.open(format=pyaudio.paInt16,
                            channels=1,
                            rate=RATE,
-                           output=True)
+                           output=True)    
     async for frame in audio_stream:
         stream.write(frame.frame.data.tobytes())
+        # await asyncio.sleep(0.01)
+    asyncio.run(write_audio(audio_stream))
     stream.stop_stream()
     stream.close()
     p.terminate()
@@ -67,6 +68,13 @@ async def main(room: rtc.Room):
         if isinstance(track, rtc.AudioTrack):
             logging.info("Subscribed to an Audio Track")
             audio_stream = rtc.AudioStream(track)
+            # remote_audio_thread = threading.Thread(
+            #     name="remote_audio_thread",
+            #     target=play_audio,
+            #     args=(audio_stream,),
+            #     daemon=True
+            # )
+            # remote_audio_thread.start()
             asyncio.ensure_future(play_audio(audio_stream))
 
 
@@ -158,9 +166,12 @@ async def main(room: rtc.Room):
                if "pydevd" not in x.name]
     logging.info('Threads %s: %s', len(threads), threads)
     # asyncio.ensure_future(video_loop(source, audio_source))
+    def audio_loop_wrapper(audio_source: rtc.AudioSource):
+        asyncio.run(audio_loop(audio_source))
+    
     local_audio_thread = threading.Thread(
         name="local_audio_thread",
-        target=audio_loop,
+        target=audio_loop_wrapper,
         args=(audio_source,),
         daemon=True
     )
@@ -170,8 +181,9 @@ async def main(room: rtc.Room):
         args=(source,),
         daemon=True
     )
+    asyncio.ensure_future(audio_loop(audio_source))
     # local_audio_thread.start()
-    # local_video_thread.start()
+    local_video_thread.start()
     # await asyncio.gather(audio_loop(audio_source), video_loop(source))
     # response = json.loads(request.send(data))
     # if response.get("status") == "success":
@@ -204,7 +216,7 @@ def video_loop(source: rtc.VideoSource):
         cv2.destroyAllWindows()
 
 
-def audio_loop(audio_source: rtc.AudioSource):
+async def audio_loop(audio_source: rtc.AudioSource):
     p = pyaudio.PyAudio()
     stream = p.open(format=pyaudio.paInt16,
                     channels=1,
@@ -221,8 +233,8 @@ def audio_loop(audio_source: rtc.AudioSource):
             logging.info(
                 f"Audio capture took: {elapsed_ms:.2f}ms, Amplitude: {amplitude:.2f}")
             frame = rtc.AudioFrame(data, RATE, NUM_CHANNELS, CHUNK)
-            asyncio.run(audio_source.capture_frame(frame))
-            asyncio.run(asyncio.sleep(0.01))
+            await audio_source.capture_frame(frame)
+            # await asyncio.sleep(0.01)
     finally:
         stream.stop_stream()
         stream.close()
