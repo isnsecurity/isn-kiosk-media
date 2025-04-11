@@ -7,6 +7,7 @@ import os
 from typing import Union
 import json
 
+import sys
 from livekit import api, rtc
 import cv2
 import pyaudio
@@ -18,6 +19,8 @@ from tools.request.client import RestClient
 WIDTH, HEIGHT = 1024, 576
 MIC_RATE = 48000
 RATE = 48000
+MIC_CHUNK = 7680
+SPEAKER_CHUNK = 1024
 CHUNK = 4096
 NUM_CHANNELS = 1
 
@@ -30,14 +33,14 @@ async def play_audio(audio_stream: rtc.AudioStream):
     async for frame in audio_stream:
         stream.write(frame.frame.data.tobytes())
         # await asyncio.sleep(0.01)
-    asyncio.run(write_audio(audio_stream))
+    # asyncio.run(write_audio(audio_stream))
     stream.stop_stream()
     stream.close()
     p.terminate()
 
 
 async def main(room: rtc.Room):
-    CREDENTIALS = "secrets/dev/isn-suite-dev-370915-firebase-adminsdk-sn531-7e70dbe832.json"
+    CREDENTIALS = "secrets/isncustomers-prod.json"
     cred = credentials.Certificate(CREDENTIALS)
     firebase_admin.initialize_app(cred)
     db = firestore.client()
@@ -103,25 +106,30 @@ async def main(room: rtc.Room):
         )
         .to_jwt()
     )
-    calls.document("7866563928").set({
+    phone = ""
+    if len(sys.argv) > 1:
+        phone = sys.argv[1]
+    else:
+        raise Exception("No phone entered")
+    calls.document(phone).set({
         'status': 'pending',
         'token': client_token,
         'room': "Kiosk Call",
         'timestamp': time(),
     })
 
-    # request = RestClient(os.getenv("PUSH_NOTIFICATION_URL"))
-    # data = {
-    #     "data": {
-    #         "phones": ["7867262434"],
-    #         "priority": "high",
-    #         "variables": {
-    #             "callToken": client_token,
-    #             "title": "Community Gate Call",
-    #             "message": "You have a call from back gate. Please click to answer."
-    #         }
-    #     }
-    # }
+    request = RestClient(os.getenv("PUSH_NOTIFICATION_URL"))
+    data = {
+        "data": {
+            "phones": [phone], # "7867262434"
+            "priority": "high",
+            "variables": {
+                "callToken": client_token,
+                "title": "Community Gate Call",
+                "message": "You have a call from back gate. Please click to answer."
+            }
+        }
+    }
 
     # wss://isn-media-xunj78xl.livekit.cloud
     # API6rvatVYtTGCf
@@ -222,17 +230,17 @@ async def audio_loop(audio_source: rtc.AudioSource):
                     channels=1,
                     rate=RATE,
                     input=True,
-                    frames_per_buffer=CHUNK)
+                    frames_per_buffer=MIC_CHUNK)
     try:
         while True:
             start = time()
-            data = stream.read(CHUNK)
+            data = stream.read(MIC_CHUNK)
             elapsed_ms = (time() - start) * 1000
             audio_array = np.frombuffer(data, dtype=np.int16)
             amplitude = np.abs(audio_array).mean()
             logging.info(
                 f"Audio capture took: {elapsed_ms:.2f}ms, Amplitude: {amplitude:.2f}")
-            frame = rtc.AudioFrame(data, RATE, NUM_CHANNELS, CHUNK)
+            frame = rtc.AudioFrame(data, RATE, NUM_CHANNELS, MIC_CHUNK)
             await audio_source.capture_frame(frame)
             # await asyncio.sleep(0.01)
     finally:

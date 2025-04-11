@@ -10,6 +10,7 @@
             "request": "launch",
             "program": "${workspaceFolder}/src/main.py",
             "console": "integratedTerminal",
+            "args": ["7867262434"],
             "env":{
                 "LIVEKIT_URL": "https://isn-media-273rhf15.livekit.cloud",
                 "LIVEKIT_API_KEY": "APInEzbJNoMNLxf",
