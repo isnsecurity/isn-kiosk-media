@@ -4,3 +4,4 @@ livekit-api
 opencv-python
 pyaudio
 firebase-admin
+pyyaml
