@@ -134,51 +134,45 @@ async def main(room: rtc.Room):
             logging.info("Unsubscribed from Audio Track %s", track.sid)
             speaker.running = False
 
-    token = device.to_dict().get('token', None)
-    if not token:
-        token = (
-            api.AccessToken()
-            .with_identity("guest-kiosk")
-            .with_name("Guest")
-            .with_grants(
-                api.VideoGrants(
-                    room_join=True,
-                    room=room_name,
-                )
+    token = (
+        api.AccessToken()
+        .with_identity("guest-kiosk")
+        .with_name("Guest")
+        .with_grants(
+            api.VideoGrants(
+                room_join=True,
+                room=room_name,
             )
-            .to_jwt()
         )
-        kiosks.document(device_id).set({
-            'token': token,
-        })
+        .to_jwt()
+    )
+    kiosks.document(device_id).set({
+        'token': token,
+    })
 
-    client_document = calls.document(phone).get()
-    client_token = client_document.to_dict().get('token', None)
-    if not client_token:
-        client_token = (
-            api.AccessToken()
-            .with_identity("jose-mobile")
-            .with_name("Jose")
-            .with_grants(
-                api.VideoGrants(
-                    room_join=True,
-                    room=room_name,
-                )
+    client_document = calls.document(phone)
+    doc_dict = client_document.get().to_dict()
+    if not doc_dict:
+        client_document.set({})
+    client_token = client_document.get().to_dict().get('token', None)
+    client_token = (
+        api.AccessToken()
+        .with_identity("jose-mobile")
+        .with_name("Jose")
+        .with_grants(
+            api.VideoGrants(
+                room_join=True,
+                room=room_name,
             )
-            .to_jwt()
         )
-        calls.document(phone).set({
-            'status': 'pending',
-            'token': client_token,
-            'room': room_name,
-            'timestamp': time(),
-        })
-    else:
-        calls.document(phone).update({
-            'status': 'pending',
-            'room': room_name,
-            'timestamp': time(),
-        })
+        .to_jwt()
+    )
+    calls.document(phone).set({
+        'status': 'pending',
+        'token': client_token,
+        'room': room_name,
+        'timestamp': time(),
+    })
 
     request = RestClient(os.getenv("PUSH_NOTIFICATION_URL"))
     data = {
