@@ -4,6 +4,7 @@ from time import sleep, time
 import sys
 import logging
 import os
+import json
 import numpy as np
 import yaml
 
@@ -57,16 +58,20 @@ async def main(room: rtc.Room):
     cred = credentials.Certificate(CREDENTIALS)
     firebase_admin.initialize_app(cred)
     db = firestore.client()
-    device_id = yaml.safe_load(open("settings.yaml"))['devide_id']
+    device_conf = yaml.safe_load(open("settings.yaml", encoding='utf-8'))
+    device_id = device_conf['devide_id']
     kiosks = db.collection('kiosks')
     device = kiosks.document(device_id).get()
     calls = db.collection('kiosk-calls')
 
     phone = ""
+    video_off = False
     if len(sys.argv) > 1:
         phone = sys.argv[1]
     else:
         raise Exception("No phone entered")
+    if len(sys.argv) > 2:
+        video_off = sys.argv[2] == "audio"
     # f"Kiosk Call to {phone} at {time()}"
     room_name = f"Kiosk Call to {phone}"
 
@@ -81,6 +86,15 @@ async def main(room: rtc.Room):
         logging.info(
             "participant disconnected: %s %s", participant.sid, participant.identity
         )
+        data = calls.document(phone).get().to_dict()
+        if data["action"] == "granted":
+            logging.info("Granted")
+        elif data["action"] == "denied":
+            logging.info("Denied")
+        elif data["action"] == "":
+            logging.info("No action")
+        else:
+            logging.info("Unknown action")
 
     @room.on("active_speakers_changed")
     def on_active_speakers_changed(speakers: list[rtc.RemoteParticipant]) -> None:
@@ -172,6 +186,9 @@ async def main(room: rtc.Room):
         'token': client_token,
         'room': room_name,
         'timestamp': time(),
+        'action': "",
+        'video': not video_off,
+        'duration': device_conf['duration'],
     })
 
     request = RestClient(os.getenv("PUSH_NOTIFICATION_URL"))
@@ -179,10 +196,10 @@ async def main(room: rtc.Room):
         "data": {
             "phones": [phone],  # "7867262434"
             "priority": "high",
+            "screen": "video-call",
             "variables": {
-                "callToken": client_token,
-                "title": "Community Gate Call",
-                "message": "You have a call from back gate. Please click to answer."
+                "title": device_conf['message_title'],
+                "message": device_conf['message_body']
             }
         }
     }
@@ -209,14 +226,6 @@ async def main(room: rtc.Room):
         logging.error("failed to connect to the room: %s", e.message)
         return
 
-    # publish a video track
-    source = rtc.VideoSource(WIDTH, HEIGHT)
-    track = rtc.LocalVideoTrack.create_video_track("hue", source)
-    options = rtc.TrackPublishOptions()
-    options.source = rtc.TrackSource.SOURCE_CAMERA
-    publication = await room.local_participant.publish_track(track, options)
-    logging.info("published video track %s", publication.sid)
-
     # publich a audio track
     audio_source = rtc.AudioSource(MIC_RATE, NUM_CHANNELS)
     audio_track = rtc.LocalAudioTrack.create_audio_track(
@@ -240,20 +249,29 @@ async def main(room: rtc.Room):
         args=(audio_source,),
         daemon=True
     )
-    local_video_thread = threading.Thread(
-        name="local_video_thread",
-        target=video_loop,
-        args=(source,),
-        daemon=True
-    )
-    local_video_thread.start()
+    if not video_off:
+        # publish a video track
+        source = rtc.VideoSource(WIDTH, HEIGHT)
+        track = rtc.LocalVideoTrack.create_video_track("hue", source)
+        options = rtc.TrackPublishOptions()
+        options.source = rtc.TrackSource.SOURCE_CAMERA
+        publication = await room.local_participant.publish_track(
+            track, options)
+        logging.info("published video track %s", publication.sid)
+        local_video_thread = threading.Thread(
+            name="local_video_thread",
+            target=video_loop,
+            args=(source,),
+            daemon=True
+        )
+        local_video_thread.start()
     asyncio.ensure_future(audio_loop(audio_source))
     # local_audio_thread.start()
 
     # await asyncio.gather(audio_loop(audio_source), video_loop(source))
-    # response = json.loads(request.send(data))
-    # if response.get("status") == "success":
-    #     logging.info("Push notification sent")
+    response = json.loads(request.send(data))
+    if response.get("status") == "success":
+        logging.info("Push notification sent")
     logging.info("Call Connected")
 
 
