@@ -16,6 +16,8 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 from tools.request.client import RestClient
 from speaker import speaker
+from camera import camera
+from mic import mic
 
 
 WIDTH, HEIGHT = 1024, 576
@@ -86,6 +88,9 @@ async def main(room: rtc.Room):
         logging.info(
             "participant disconnected: %s %s", participant.sid, participant.identity
         )
+        mic.is_active = False
+        camera.recording = False
+        speaker.running = False
         data = calls.document(phone).get().to_dict()
         if data["action"] == "granted":
             logging.info("Granted")
@@ -276,11 +281,12 @@ async def main(room: rtc.Room):
 
 
 def video_loop(source: rtc.VideoSource):
+    camera.recording = True
     cap = cv2.VideoCapture(0)
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, WIDTH)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, HEIGHT)
     try:
-        while True:
+        while camera.recording:
             _, frame = cap.read()
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGBA)
             # rezise image to portrait
@@ -299,9 +305,11 @@ def video_loop(source: rtc.VideoSource):
         cap.release()
         # Destroy all the windows
         cv2.destroyAllWindows()
+    logging.info("Video stream closed")
 
 
 async def audio_loop(audio_source: rtc.AudioSource):
+    mic.is_active = True
     pe = pyaudio.PyAudio()
     stream = pe.open(format=pyaudio.paInt16,
                      channels=1,
@@ -309,12 +317,12 @@ async def audio_loop(audio_source: rtc.AudioSource):
                      input=True,
                      frames_per_buffer=MIC_CHUNK)
     try:
-        while True:
-            start = time()
+        while mic.is_active:
+            # start = time()
             data = stream.read(MIC_CHUNK)
-            elapsed_ms = (time() - start) * 1000
-            audio_array = np.frombuffer(data, dtype=np.int16)
-            amplitude = np.abs(audio_array).mean()
+            # elapsed_ms = (time() - start) * 1000
+            # audio_array = np.frombuffer(data, dtype=np.int16)
+            # amplitude = np.abs(audio_array).mean()
             # logging.info(
             #     f"Audio capture took: {elapsed_ms:.2f}ms, Amplitude: {amplitude:.2f}")
             frame = rtc.AudioFrame(data, RATE, NUM_CHANNELS, MIC_CHUNK)
@@ -324,6 +332,7 @@ async def audio_loop(audio_source: rtc.AudioSource):
         stream.stop_stream()
         stream.close()
         pe.terminate()
+        asyncio.get_running_loop().stop()
 
 
 if __name__ == "__main__":
