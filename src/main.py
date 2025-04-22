@@ -332,6 +332,7 @@ async def audio_loop(audio_source: rtc.AudioSource):
         stream.stop_stream()
         stream.close()
         pe.terminate()
+        await local_room.disconnect()
         asyncio.get_running_loop().stop()
 
 
@@ -363,5 +364,3 @@ if __name__ == "__main__":
         logging.error("Error occurred: %s", e)
     finally:
         loop.close()
-
-    cleanup()
