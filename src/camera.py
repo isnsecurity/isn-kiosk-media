@@ -11,7 +11,7 @@ class Camera:
         self.cam = Picamera2()        
 
     def video_loop(self, source: rtc.VideoSource, WIDTH=640, HEIGHT=480):
-        self.cam.configure(self.cam.create_video_configuration(main={"format": 'RGB888', "size": (WIDTH, HEIGHT)}))
+        self.cam.configure(self.cam.create_video_configuration(main={"format": 'XBGR8888', "size": (WIDTH, HEIGHT)}))
         self.cam.start()
         self.recording = True
             

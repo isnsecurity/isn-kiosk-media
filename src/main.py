@@ -266,7 +266,7 @@ async def main(room: rtc.Room):
         local_video_thread = threading.Thread(
             name="local_video_thread",
             target=camera.video_loop,
-            args=(source,),
+            args=(source, WIDTH, HEIGHT,),
             daemon=True
         )
         local_video_thread.start()
