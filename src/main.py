@@ -20,7 +20,7 @@ from camera import camera
 from mic import mic
 
 
-WIDTH, HEIGHT = 1024, 576
+WIDTH, HEIGHT = 1296, 972
 MIC_RATE = 48000
 RATE = 48000
 MIC_CHUNK = 1024
@@ -265,7 +265,7 @@ async def main(room: rtc.Room):
         logging.info("published video track %s", publication.sid)
         local_video_thread = threading.Thread(
             name="local_video_thread",
-            target=video_loop,
+            target=camera.video_loop,
             args=(source,),
             daemon=True
         )
@@ -288,6 +288,9 @@ def video_loop(source: rtc.VideoSource):
     try:
         while camera.recording:
             _, frame = cap.read()
+            if frame is None:
+                sleep(0.1)
+                continue
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGBA)
             # rezise image to portrait
             # new_width = 300
