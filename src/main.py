@@ -18,6 +18,7 @@ from tools.request.client import RestClient
 from speaker import speaker
 from camera import camera
 from mic import mic
+from call import call
 
 
 WIDTH, HEIGHT = 1296, 972
@@ -36,7 +37,8 @@ async def play_audio(audio_stream: rtc.AudioStream):
     stream = p.open(format=pyaudio.paInt16,
                     channels=1,
                     rate=RATE,
-                    output=True)
+                    output=True,
+                    frames_per_buffer=SPEAKER_CHUNK)
     await asyncio.sleep(1)
     async for frame in audio_stream:
         if not speaker.running:
@@ -82,6 +84,7 @@ async def main(room: rtc.Room):
         logging.info(
             "participant connected: %s %s", participant.sid, participant.identity
         )
+        call.responded()
 
     @room.on("participant_disconnected")
     def on_participant_disconnected(participant: rtc.RemoteParticipant) -> None:
@@ -271,6 +274,14 @@ async def main(room: rtc.Room):
         )
         local_video_thread.start()
     asyncio.ensure_future(audio_loop(audio_source))
+    wait_time = device_conf.get('wait', 60)
+    wait_thread = threading.Thread(
+        name="wait_thread",
+        target=wait_loop,
+        args=(wait_time,),
+        daemon=True
+    )
+    wait_thread.start()
     # local_audio_thread.start()
 
     # await asyncio.gather(audio_loop(audio_source), video_loop(source))
@@ -337,6 +348,15 @@ async def audio_loop(audio_source: rtc.AudioSource):
         pe.terminate()
         await local_room.disconnect()
         asyncio.get_running_loop().stop()
+
+def wait_loop(wait=60):
+    for i in range(wait):
+        sleep(1)
+    if call.state != 'on':
+        mic.is_active = False
+        camera.recording = False
+        speaker.running = False
+        logging.info("No Response")
 
 
 if __name__ == "__main__":

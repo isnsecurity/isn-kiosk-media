@@ -2,3 +2,4 @@ devide_id: "66etQM0OXtftWcQpdYQE"
 message_title: "Community Gate Call" # Push notification title
 message_body: "You have a call from back gate. Please click to answer." # Push notification body
 duration: 30 # call duration in seconds
+waiting: 60 # waiting time for the call to be answered in seconds
